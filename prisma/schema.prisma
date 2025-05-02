@@ -1,0 +1,60 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  password      String
+  role          String         @default("user") // user, admin
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  loaderRequests LoaderRequest[]
+}
+
+model LoaderRequest {
+  id              String    @id @default(uuid())
+  date            DateTime  @default(now())
+  plant           String
+  customerName    String
+  vehicleType     String
+  vehicleNumber   String
+  containerNumber String?
+  warehouseName   String
+  transactionType String
+  checkerName     String
+  status          String    @default("draft") // draft, submitted
+  documentNumber  String?   // Added document number field
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  photos          Photo[]
+}
+
+model Photo {
+  id              String        @id @default(uuid())
+  type            String        // frontView, frontLeftSide, etc.
+  category        String        // required, transaction, product
+  url             String
+  publicId        String
+  loaderRequestId String
+  loaderRequest   LoaderRequest @relation(fields: [loaderRequestId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model DocumentCounter {
+  id        String   @id @default("document_counter")
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
