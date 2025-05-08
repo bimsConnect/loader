@@ -150,7 +150,7 @@ export function SignatureTab({
               <div className="text-gray-500">No. Polisi:</div>
               <div className="font-medium">{formData.vehicleNumber || "-"}</div>
             </div>
-            {formData.vehicleType === "Container" && (
+            {formData.vehicleType.includes("Container") && (
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className="text-gray-500">No. Container:</div>
                 <div className="font-medium">{formData.containerNumber || "-"}</div>

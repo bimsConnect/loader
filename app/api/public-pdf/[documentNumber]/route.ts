@@ -1,26 +1,43 @@
 import { type NextRequest, NextResponse } from "next/server"
 import puppeteer from "puppeteer"
-import { getUserFromSession } from "@/lib/auth"
+import prisma from "@/lib/prisma"
 import { format } from "date-fns"
 import { id } from "date-fns/locale"
 import fs from "fs"
 import path from "path"
-import QRCode from "qrcode"
 
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest, { params }: { params: { documentNumber: string } }) {
   try {
-    // Verifikasi autentikasi
-    const user = await getUserFromSession()
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const { documentNumber } = params
+
+    if (!documentNumber) {
+      return NextResponse.json({ error: "Document number is required" }, { status: 400 })
     }
 
-    // Ambil data dari request body
-    const data = await req.json()
-    const { formData, documentNumber } = data
+    // Cari loader request berdasarkan nomor dokumen
+    const loaderRequest = await prisma.loaderRequest.findFirst({
+      where: {
+        documentNumber: documentNumber,
+      },
+      include: {
+        photos: true,
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    })
+
+    if (!loaderRequest) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 })
+    }
+
+    // Format data untuk PDF
+    const formData = formatRequestForPdf(loaderRequest)
 
     // Format tanggal
-    const formattedDate = format(new Date(formData.date), "dd MMMM yyyy", { locale: id })
+    const formattedDate = format(new Date(loaderRequest.date), "dd MMMM yyyy", { locale: id })
     const generatedDate = format(new Date(), "dd MMMM yyyy, HH:mm", { locale: id })
 
     // Coba baca logo sebagai base64
@@ -46,26 +63,6 @@ export async function POST(req: NextRequest) {
       // Jika gagal membaca logo, logoBase64 tetap string kosong
     }
 
-    // Generate QR code untuk download PDF
-    let qrCodeDataUrl = ""
-    try {
-      // Buat URL untuk download PDF
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || req.headers.get("origin") || "https://loader-lovat-seven.vercel.app/"
-      const pdfUrl = `${baseUrl}/api/public-pdf/${documentNumber}`
-
-      qrCodeDataUrl = await QRCode.toDataURL(pdfUrl, {
-        errorCorrectionLevel: "H",
-        margin: 1,
-        width: 200,
-        color: {
-          dark: "#000000",
-          light: "#ffffff",
-        },
-      })
-    } catch (error) {
-      console.error("Error generating QR code:", error)
-    }
-
     // Buat HTML untuk PDF
     const html = generateHtml(
       formData,
@@ -73,8 +70,7 @@ export async function POST(req: NextRequest) {
       formattedDate,
       generatedDate,
       logoBase64,
-      user.name,
-      qrCodeDataUrl,
+      loaderRequest.user?.name || loaderRequest.checkerName,
     )
 
     // Luncurkan browser Puppeteer
@@ -118,16 +114,62 @@ export async function POST(req: NextRequest) {
     return new NextResponse(pdfBuffer, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="Loader_Request_${documentNumber || "Document"}.pdf"`,
+        "Content-Disposition": `attachment; filename="Loader_Request_${documentNumber}.pdf"`,
       },
     })
   } catch (error) {
-    console.error("Error generating PDF:", error)
+    console.error("Error generating public PDF:", error)
     return NextResponse.json({ error: "Failed to generate PDF" }, { status: 500 })
   }
 }
 
-// Fungsi untuk membuat HTML untuk PDF
+function formatRequestForPdf(loaderRequest: any) {
+  // Group photos by category and type
+  const requiredPhotos: any = {}
+  const photos: any = {
+    products: [],
+  }
+
+  loaderRequest.photos.forEach((photo: any) => {
+    if (photo.category === "required") {
+      requiredPhotos[photo.type] = {
+        preview: photo.url,
+      }
+    } else if (photo.category === "transaction") {
+      photos[photo.type] = {
+        preview: photo.url,
+      }
+    } else if (photo.category === "product") {
+      photos.products.push({
+        id: photo.id,
+        preview: photo.url,
+      })
+    }
+  })
+
+  // Ensure products array has 7 items
+  while (photos.products.length < 7) {
+    photos.products.push({
+      id: `empty-${photos.products.length}`,
+      preview: null,
+    })
+  }
+
+  return {
+    date: loaderRequest.date,
+    plant: loaderRequest.plant,
+    customerName: loaderRequest.customerName,
+    vehicleType: loaderRequest.vehicleType,
+    vehicleNumber: loaderRequest.vehicleNumber,
+    containerNumber: loaderRequest.containerNumber,
+    warehouseName: loaderRequest.warehouseName,
+    transactionType: loaderRequest.transactionType,
+    requiredPhotos,
+    photos,
+    checkerName: loaderRequest.checkerName,
+  }
+}
+
 function generateHtml(
   formData: any,
   documentNumber: string,
@@ -135,7 +177,6 @@ function generateHtml(
   generatedDate: string,
   logoBase64: string,
   userName: string,
-  qrCodeDataUrl: string,
 ) {
   // Fungsi helper untuk menampilkan foto
   const renderPhoto = (label: string, image: string | null | undefined) => {
@@ -426,17 +467,6 @@ function generateHtml(
           color: #6b7280;
         }
         
-        .qr-code {
-          width: 100px;
-          height: 100px;
-          margin-bottom: 10px;
-        }
-        
-        .qr-code img {
-          width: 100%;
-          height: 100%;
-        }
-        
         .footer {
           background-color: #f9fafb;
           border-top: 1px solid #e5e7eb;
@@ -664,19 +694,10 @@ function generateHtml(
             ${renderPhoto("Product 7", formData.photos.products[6]?.preview)}
           </div>
           
-          <!-- QR Code for PDF Download -->
+          <!-- Signature -->
           <div class="signature-section">
             <div class="signature-box">
-              ${
-                qrCodeDataUrl
-                  ? `
-                <div class="qr-code">
-                  <img src="${qrCodeDataUrl}" alt="QR Code for PDF Download" />
-                </div>
-                <p class="text-sm text-gray-500">Scan untuk download PDF</p>
-              `
-                  : `<div class="signature-line"></div>`
-              }
+              <div class="signature-line"></div>
               <div class="signature-name">${userName}</div>
               <div class="signature-title">Checker</div>
             </div>

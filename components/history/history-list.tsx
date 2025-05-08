@@ -17,6 +17,7 @@ import {
   Trash2,
   AlertCircle,
   Loader2,
+  RefreshCw,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -70,6 +71,10 @@ export function HistoryList() {
   const [deleteDialog, setDeleteDialog] = useState({
     open: false,
     requestId: "",
+    loading: false,
+  })
+  const [deleteAllDialog, setDeleteAllDialog] = useState({
+    open: false,
     loading: false,
   })
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -216,6 +221,43 @@ export function HistoryList() {
     }
   }
 
+  const handleDeleteAllRequests = () => {
+    setDeleteAllDialog({
+      open: true,
+      loading: false,
+    })
+  }
+
+  const confirmDeleteAll = async () => {
+    try {
+      setDeleteAllDialog((prev) => ({ ...prev, loading: true }))
+
+      const response = await fetch(`/api/loader-requests/delete-all`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to delete all requests")
+      }
+
+      // Clear all requests from state
+      setRequests([])
+      setFilteredRequests([])
+
+      // Close the dialog
+      setDeleteAllDialog({
+        open: false,
+        loading: false,
+      })
+    } catch (error) {
+      console.error("Error deleting all requests:", error)
+      setErrorMessage(error instanceof Error ? error.message : "Gagal menghapus semua permintaan")
+    } finally {
+      setDeleteAllDialog((prev) => ({ ...prev, loading: false }))
+    }
+  }
+
   const formatRequestForPdf = (request: LoaderRequest) => {
     // Group photos by category and type
     const requiredPhotos: any = {}
@@ -341,7 +383,7 @@ export function HistoryList() {
             </Alert>
           )}
 
-          <div className="mb-4 flex items-center gap-2">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
               <Input
@@ -352,9 +394,15 @@ export function HistoryList() {
               />
             </div>
             <Button variant="outline" onClick={() => fetchLoaderRequests()} className="flex items-center gap-1">
-              <FileText className="h-4 w-4" />
+              <RefreshCw className="h-4 w-4" />
               Refresh
             </Button>
+            {requests.length > 0 && (
+              <Button variant="destructive" onClick={handleDeleteAllRequests} className="flex items-center gap-1">
+                <Trash2 className="h-4 w-4" />
+                Hapus Semua
+              </Button>
+            )}
           </div>
 
           {filteredRequests.length === 0 ? (
@@ -368,7 +416,7 @@ export function HistoryList() {
               </p>
             </div>
           ) : (
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -505,6 +553,45 @@ export function HistoryList() {
                 <>
                   <Trash2 className="mr-2 h-4 w-4" />
                   Hapus
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete All Confirmation Dialog */}
+      <Dialog
+        open={deleteAllDialog.open}
+        onOpenChange={(open) => !open && setDeleteAllDialog((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent>
+          <DialogTitle className="text-red-600 flex items-center gap-2">
+            <AlertCircle className="h-5 w-5" />
+            Konfirmasi Hapus Semua
+          </DialogTitle>
+          <DialogDescription>
+            Apakah Anda yakin ingin menghapus SEMUA permintaan loader? Tindakan ini tidak dapat dibatalkan dan akan
+            menghapus seluruh riwayat.
+          </DialogDescription>
+          <DialogFooter className="flex gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteAllDialog({ open: false, loading: false })}
+              disabled={deleteAllDialog.loading}
+            >
+              Batal
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteAll} disabled={deleteAllDialog.loading}>
+              {deleteAllDialog.loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Menghapus Semua...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Hapus Semua
                 </>
               )}
             </Button>
