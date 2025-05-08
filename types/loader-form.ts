@@ -21,7 +21,6 @@ export type FormData = {
   vehicleType: string
   vehicleNumber: string
   containerNumber: string
-  warehouseName: string
   transactionType: "Inbound" | "Outbound"
   requiredPhotos: RequiredPhotos
   photos: {

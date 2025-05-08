@@ -36,17 +36,6 @@ export function PhotoUploadField({
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [cameraReady, setCameraReady] = useState(false)
 
-  const triggerFileInput = () => {
-    fileInputRef.current?.click()
-  }
-
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (onDelete) {
-      onDelete()
-    }
-  }
-
   // Clean up camera resources when component unmounts or dialog closes
   useEffect(() => {
     return () => {
@@ -136,14 +125,27 @@ export function PhotoUploadField({
     setCameraReady(true)
   }
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (onDelete) {
+      onDelete()
+    }
+  }
+
+  const handleBrowseClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click()
+    }
+  }
+
   return (
     <div className={`space-y-2 ${className}`}>
       <Label>{label}</Label>
       <div
         className={`border-2 border-dashed rounded-lg p-4 ${height} flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors ${
-          preview ? "border-green-500" : "border-gray-300"
+          preview ? "border-blue-500" : "border-gray-300"
         }`}
-        onClick={preview ? undefined : () => {}}
+        onClick={preview ? undefined : handleBrowseClick}
       >
         <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={onChange} />
 
@@ -154,7 +156,7 @@ export function PhotoUploadField({
               alt={`Preview for ${label}`}
               className="w-full h-full object-contain"
             />
-            <div className="absolute top-2 right-2 bg-green-500 text-white p-1 rounded-full">
+            <div className="absolute top-2 right-2 bg-blue-500 text-white p-1 rounded-full">
               <Check size={16} />
             </div>
             {onDelete && (
@@ -172,7 +174,7 @@ export function PhotoUploadField({
           </div>
         ) : (
           <div className="flex flex-col items-center gap-4">
-            <div className="flex gap-4">
+            <div className="flex gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -181,20 +183,20 @@ export function PhotoUploadField({
                 onClick={openCamera}
               >
                 <Camera size={16} />
-                Kamera
+                Ambil Foto
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="flex items-center gap-2"
-                onClick={triggerFileInput}
+                onClick={handleBrowseClick}
               >
                 <ImageIcon size={16} />
-                Galeri
+                Pilih dari Galeri
               </Button>
             </div>
-            <p className="text-sm text-gray-500">Pilih metode upload</p>
+            <p className="text-sm text-gray-500">Klik untuk memilih atau mengambil foto</p>
           </div>
         )}
       </div>
@@ -232,7 +234,7 @@ export function PhotoUploadField({
                   <Button
                     type="button"
                     onClick={capturePhoto}
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-blue-600 hover:bg-blue-700"
                     disabled={!cameraReady}
                   >
                     <Camera className="mr-2 h-4 w-4" />

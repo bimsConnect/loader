@@ -31,6 +31,7 @@ interface LoaderRequest {
   createdAt: string
   updatedAt: string
   photos: Photo[]
+  documentNumber?: string
 }
 
 interface HistoryDetailProps {
@@ -138,6 +139,15 @@ export function HistoryDetail({ request }: HistoryDetailProps) {
             <span>Dibuat pada:</span>
           </div>
           <p className="font-medium">{format(new Date(request.createdAt), "dd MMM yyyy, HH:mm", { locale: id })}</p>
+        </div>
+
+        {/* Tambahkan Document Number di bagian informasi utama */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-gray-500">
+            <FileText className="h-4 w-4" />
+            <span>No. Dokumen:</span>
+          </div>
+          <p className="font-medium">{request.documentNumber || "-"}</p>
         </div>
       </div>
 

@@ -2,6 +2,7 @@
 
 import type React from "react"
 
+import { useEffect, useState } from "react"
 import { Building, Calendar, FileText, Truck, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,6 +30,78 @@ export function GeneralInfoTab({
   plants,
   vehicleTypes,
 }: GeneralInfoTabProps) {
+  const [customerSuggestions, setCustomerSuggestions] = useState<string[]>([])
+  const [vehicleNumberSuggestions, setVehicleNumberSuggestions] = useState<string[]>([])
+  const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false)
+  const [showVehicleNumberSuggestions, setShowVehicleNumberSuggestions] = useState(false)
+
+  // Load saved suggestions from localStorage on component mount
+  useEffect(() => {
+    const savedCustomers = localStorage.getItem("savedCustomers")
+    const savedVehicleNumbers = localStorage.getItem("savedVehicleNumbers")
+
+    if (savedCustomers) {
+      setCustomerSuggestions(JSON.parse(savedCustomers))
+    }
+
+    if (savedVehicleNumbers) {
+      setVehicleNumberSuggestions(JSON.parse(savedVehicleNumbers))
+    }
+  }, [])
+
+  // Save new values to localStorage and update suggestions
+  const handleCustomerBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = e.target.value.trim()
+    if (value && !customerSuggestions.includes(value)) {
+      const newSuggestions = [...customerSuggestions, value]
+      setCustomerSuggestions(newSuggestions)
+      localStorage.setItem("savedCustomers", JSON.stringify(newSuggestions))
+    }
+    setShowCustomerSuggestions(false)
+  }
+
+  const handleVehicleNumberBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = e.target.value.trim()
+    if (value && !vehicleNumberSuggestions.includes(value)) {
+      const newSuggestions = [...vehicleNumberSuggestions, value]
+      setVehicleNumberSuggestions(newSuggestions)
+      localStorage.setItem("savedVehicleNumbers", JSON.stringify(newSuggestions))
+    }
+    setShowVehicleNumberSuggestions(false)
+  }
+
+  const handleCustomerFocus = () => {
+    setShowCustomerSuggestions(true)
+  }
+
+  const handleVehicleNumberFocus = () => {
+    setShowVehicleNumberSuggestions(true)
+  }
+
+  const selectCustomerSuggestion = (suggestion: string) => {
+    const event = {
+      target: {
+        name: "customerName",
+        value: suggestion,
+      },
+    } as React.ChangeEvent<HTMLInputElement>
+
+    onInputChange(event)
+    setShowCustomerSuggestions(false)
+  }
+
+  const selectVehicleNumberSuggestion = (suggestion: string) => {
+    const event = {
+      target: {
+        name: "vehicleNumber",
+        value: suggestion,
+      },
+    } as React.ChangeEvent<HTMLInputElement>
+
+    onInputChange(event)
+    setShowVehicleNumberSuggestions(false)
+  }
+
   return (
     <Card className="border-0 shadow-md">
       <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-t-lg">
@@ -75,7 +148,7 @@ export function GeneralInfoTab({
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 relative">
           <Label htmlFor="customerName" className="flex items-center gap-2">
             <User size={16} className="text-gray-500" />
             Nama Customer
@@ -85,9 +158,31 @@ export function GeneralInfoTab({
             name="customerName"
             value={formData.customerName}
             onChange={onInputChange}
+            onFocus={handleCustomerFocus}
+            onBlur={handleCustomerBlur}
             placeholder="Masukkan nama customer"
             className="border-gray-200"
+            autoComplete="off"
           />
+          {showCustomerSuggestions && customerSuggestions.length > 0 && formData.customerName && (
+            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+              {customerSuggestions
+                .filter(
+                  (suggestion) =>
+                    suggestion.toLowerCase().includes(formData.customerName.toLowerCase()) &&
+                    suggestion.toLowerCase() !== formData.customerName.toLowerCase(),
+                )
+                .map((suggestion, index) => (
+                  <div
+                    key={index}
+                    className="px-4 py-2 cursor-pointer hover:bg-blue-50"
+                    onMouseDown={() => selectCustomerSuggestion(suggestion)}
+                  >
+                    {suggestion}
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -110,7 +205,7 @@ export function GeneralInfoTab({
             </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 relative">
             <Label htmlFor="vehicleNumber" className="flex items-center gap-2">
               <Truck size={16} className="text-gray-500" />
               No Polisi Kendaraan
@@ -120,17 +215,39 @@ export function GeneralInfoTab({
               name="vehicleNumber"
               value={formData.vehicleNumber}
               onChange={onInputChange}
+              onFocus={handleVehicleNumberFocus}
+              onBlur={handleVehicleNumberBlur}
               placeholder="Masukkan nomor polisi"
               className="border-gray-200"
+              autoComplete="off"
             />
+            {showVehicleNumberSuggestions && vehicleNumberSuggestions.length > 0 && formData.vehicleNumber && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+                {vehicleNumberSuggestions
+                  .filter(
+                    (suggestion) =>
+                      suggestion.toLowerCase().includes(formData.vehicleNumber.toLowerCase()) &&
+                      suggestion.toLowerCase() !== formData.vehicleNumber.toLowerCase(),
+                  )
+                  .map((suggestion, index) => (
+                    <div
+                      key={index}
+                      className="px-4 py-2 cursor-pointer hover:bg-blue-50"
+                      onMouseDown={() => selectVehicleNumberSuggestion(suggestion)}
+                    >
+                      {suggestion}
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {formData.vehicleType === "Container" && (
+        {formData.vehicleType.includes("Container") && (
           <div className="space-y-2">
             <Label htmlFor="containerNumber" className="flex items-center gap-2">
               <Truck size={16} className="text-gray-500" />
-              No Container
+              No Container <span className="text-red-500 ml-1">*</span>
             </Label>
             <Input
               id="containerNumber"
@@ -139,24 +256,10 @@ export function GeneralInfoTab({
               onChange={onInputChange}
               placeholder="Masukkan nomor container"
               className="border-gray-200"
+              required={formData.vehicleType.includes("Container")}
             />
           </div>
         )}
-
-        <div className="space-y-2">
-          <Label htmlFor="warehouseName" className="flex items-center gap-2">
-            <Building size={16} className="text-gray-500" />
-            Nama Gudang
-          </Label>
-          <Input
-            id="warehouseName"
-            name="warehouseName"
-            value={formData.warehouseName}
-            onChange={onInputChange}
-            placeholder="Masukkan nama gudang"
-            className="border-gray-200"
-          />
-        </div>
 
         <div className="space-y-2">
           <Label className="flex items-center gap-2">

@@ -83,7 +83,7 @@ export function PhotosTab({
             />
 
             <PhotoUploadField
-              label="Foto Tampak Belakang Sebelum Dibuka"
+              label="Tampak Belakang Sebelum Dibuka"
               preview={formData.requiredPhotos.backBeforeOpen?.preview || null}
               onChange={onRequiredPhotoUpload("backBeforeOpen")}
               onDelete={() => onDeleteRequiredPhoto("backBeforeOpen")}

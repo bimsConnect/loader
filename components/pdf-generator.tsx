@@ -1,11 +1,13 @@
 "use client"
 
-import { useRef } from "react"
+import { useState } from "react"
 import { format } from "date-fns"
 import { id } from "date-fns/locale"
-import html2canvas from "html2canvas"
-import jsPDF from "jspdf"
+import { Download, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { FormData } from "@/types/loader-form"
+import { useAuth } from "@/context/auth-context"
 
 interface PdfGeneratorProps {
   formData: FormData
@@ -13,376 +15,166 @@ interface PdfGeneratorProps {
 }
 
 export function PdfGenerator({ formData, documentNumber = "-" }: PdfGeneratorProps) {
-  const pdfRef = useRef<HTMLDivElement>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { user } = useAuth()
 
   const generatePdf = async () => {
-    if (!pdfRef.current) return
+    setLoading(true)
+    setError(null)
 
-    // Use better settings for image quality
-    const canvas = await html2canvas(pdfRef.current, {
-      scale: 2, // Higher scale for better quality
-      useCORS: true,
-      allowTaint: true,
-      logging: false,
-      imageTimeout: 0,
-      backgroundColor: "#ffffff",
-    })
+    try {
+      // Panggil API untuk menghasilkan PDF
+      const response = await fetch("/api/generate-pdf", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          formData,
+          documentNumber,
+        }),
+      })
 
-    // Use better compression settings
-    const imgData = canvas.toDataURL("image/jpeg", 0.8) // 80% quality JPEG
+      if (!response.ok) {
+        let errorMessage = "Failed to generate PDF"
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch (e) {
+          // Jika tidak bisa parse JSON, gunakan pesan error default
+        }
+        throw new Error(errorMessage)
+      }
 
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-      compress: true,
-    })
+      // Dapatkan blob dari response
+      const blob = await response.blob()
 
-    const pdfWidth = pdf.internal.pageSize.getWidth()
-    const pdfHeight = pdf.internal.pageSize.getHeight()
+      // Buat URL untuk blob
+      const url = window.URL.createObjectURL(blob)
 
-    // Calculate aspect ratio to prevent distortion
-    const canvasRatio = canvas.width / canvas.height
-    const pageRatio = pdfWidth / pdfHeight
+      // Buat link untuk download
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `Loader_Request_${documentNumber || "Document"}.pdf`
+      document.body.appendChild(a)
+      a.click()
 
-    let imgWidth, imgHeight, imgX, imgY
-
-    if (canvasRatio > pageRatio) {
-      // Canvas is wider than page ratio
-      imgWidth = pdfWidth
-      imgHeight = imgWidth / canvasRatio
-      imgX = 0
-      imgY = (pdfHeight - imgHeight) / 2
-    } else {
-      // Canvas is taller than page ratio
-      imgHeight = pdfHeight
-      imgWidth = imgHeight * canvasRatio
-      imgX = (pdfWidth - imgWidth) / 2
-      imgY = 0
+      // Cleanup
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error("Error generating PDF:", error)
+      setError(error instanceof Error ? error.message : "Failed to generate PDF")
+    } finally {
+      setLoading(false)
     }
-
-    pdf.addImage(imgData, "JPEG", imgX, imgY, imgWidth, imgHeight)
-    pdf.save(`loader-request-${formData.date}-${documentNumber}.pdf`)
   }
+
+  // Format date for display
+  const formattedDate = format(new Date(formData.date), "dd MMMM yyyy", { locale: id })
 
   return (
     <div className="w-full">
-      <div className="mb-4 flex justify-end">
-        <button
-          onClick={generatePdf}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 mr-2"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-            />
-          </svg>
-          Download PDF
-        </button>
+      <div className="mb-4 flex justify-between items-center">
+        <h2 className="text-xl font-semibold">PDF Preview</h2>
+        <Button onClick={generatePdf} className="bg-blue-600 hover:bg-blue-700 text-white" disabled={loading}>
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Generating PDF...
+            </>
+          ) : (
+            <>
+              <Download className="mr-2 h-5 w-5" />
+              Download PDF
+            </>
+          )}
+        </Button>
       </div>
 
-      <div
-        ref={pdfRef}
-        className="bg-white border border-gray-300 p-8 shadow-md"
-        style={{ width: "210mm", minHeight: "297mm", margin: "0 auto" }}
-      >
-        {/* Header */}
-        <div className="flex justify-between items-start mb-6">
-          <div className="flex items-center">
-            <img src="/images/company/logo.png" alt="Company Logo" className="h-16 mr-4" />
-            <div className="text-blue-800 font-bold">PT. DUNIA KIMIA JAYA</div>
-          </div>
-        </div>
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-        <h1 className="text-xl font-bold text-center text-blue-800 mb-6">
-          Report Documentation Warehouse {formData.transactionType} Activity
-        </h1>
-
-        {/* Main Info */}
-        <div className="grid grid-cols-2 gap-8 mb-6">
-          <div>
-            <div className="grid grid-cols-3 mb-2">
-              <div className="font-semibold">Shipper Name</div>
-              <div className="col-span-2">: {formData.customerName}</div>
-            </div>
-            <div className="grid grid-cols-3 mb-2">
-              <div className="font-semibold">Receipt Date</div>
-              <div className="col-span-2">: {format(new Date(formData.date), "dd-MMM-yyyy", { locale: id })}</div>
-            </div>
-            <div className="grid grid-cols-3 mb-2">
-              <div className="font-semibold">No Document</div>
-              <div className="col-span-2">: {documentNumber}</div>
-            </div>
-          </div>
-          <div>
-            <div className="grid grid-cols-3 mb-2">
-              <div className="font-semibold">Transaction</div>
-              <div className="col-span-2">: {formData.transactionType}</div>
-            </div>
-            <div className="grid grid-cols-3 mb-2">
-              <div className="font-semibold">Vehicle No</div>
-              <div className="col-span-2">: {formData.vehicleNumber}</div>
-            </div>
-            <div className="grid grid-cols-3 mb-2">
-              <div className="font-semibold">Container No</div>
-              <div className="col-span-2">: {formData.containerNumber || "-"}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Photos Section 1 */}
-        <div className="grid grid-cols-4 gap-2 mb-4">
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">Foto Tampak Depan</div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.requiredPhotos.frontView?.preview && (
-                <img
-                  src={formData.requiredPhotos.frontView.preview || "/placeholder.svg"}
-                  alt="Front View"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">Depan Sisi Kiri</div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.requiredPhotos.frontLeftSide?.preview && (
-                <img
-                  src={formData.requiredPhotos.frontLeftSide.preview || "/placeholder.svg"}
-                  alt="Front Left Side"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">Depan Sisi Kanan</div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.requiredPhotos.frontRightSide?.preview && (
-                <img
-                  src={formData.requiredPhotos.frontRightSide.preview || "/placeholder.svg"}
-                  alt="Front Right Side"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">Segel</div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.requiredPhotos.seal?.preview && (
-                <img
-                  src={formData.requiredPhotos.seal.preview || "/placeholder.svg"}
-                  alt="Seal"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Photos Section 2 */}
-        <div className="grid grid-cols-4 gap-2 mb-4">
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">
-              <div className="line-clamp-2">Foto Tampak Belakang Sebelum Dibuka</div>
-            </div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.requiredPhotos.backBeforeOpen?.preview && (
-                <img
-                  src={formData.requiredPhotos.backBeforeOpen.preview || "/placeholder.svg"}
-                  alt="Back Before Open"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">Samping Kanan</div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.requiredPhotos.rightSide?.preview && (
-                <img
-                  src={formData.requiredPhotos.rightSide.preview || "/placeholder.svg"}
-                  alt="Right Side"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">Samping Kiri</div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.requiredPhotos.leftSide?.preview && (
-                <img
-                  src={formData.requiredPhotos.leftSide.preview || "/placeholder.svg"}
-                  alt="Left Side"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">
-              <div className="line-clamp-2">
-                Foto Tampak Belakang Sebelum {formData.transactionType === "Inbound" ? "Bongkar" : "Muat"}
+      <div className="bg-gray-100 p-4 rounded-lg">
+        <div className="bg-white border border-gray-300 shadow-lg rounded-lg overflow-hidden max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center">
+                <div className="bg-white p-2 rounded-lg mr-4">
+                  <div className="h-14 w-14 flex items-center justify-center">
+                    <img src="/images/company/logo.png" alt="Company Logo" className="max-w-full max-h-full" />
+                  </div>
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold">PT. DUNIA KIMIA JAYA</h1>
+                  <p className="text-sm opacity-80">Warehouse Management System</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="bg-blue-700 px-4 py-2 rounded-lg inline-block">
+                  <span className="text-sm opacity-80">Document No.</span>
+                  <p className="font-bold text-lg">{documentNumber}</p>
+                </div>
               </div>
             </div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.transactionType === "Inbound"
-                ? formData.photos.beforeUnloading?.preview && (
-                    <img
-                      src={formData.photos.beforeUnloading.preview || "/placeholder.svg"}
-                      alt="Before Unloading"
-                      className="w-full h-full object-cover"
-                    />
-                  )
-                : formData.photos.beforeLoading?.preview && (
-                    <img
-                      src={formData.photos.beforeLoading.preview || "/placeholder.svg"}
-                      alt="Before Loading"
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-            </div>
           </div>
-        </div>
 
-        {/* Photos Section 3 - Products */}
-        <div className="grid grid-cols-4 gap-2 mb-4">
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">
-              <div className="line-clamp-2">
-                Foto Setelah {formData.transactionType === "Inbound" ? "Bongkar" : "Muat"}
+          {/* Title */}
+          <div className="bg-gray-50 border-b border-gray-300 p-4 text-center">
+            <h2 className="text-xl font-bold text-gray-800">
+              Report Documentation Warehouse {formData.transactionType} Activity
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Generated on {format(new Date(), "dd MMMM yyyy, HH:mm", { locale: id })}
+            </p>
+          </div>
+
+          {/* Main Content */}
+          <div className="p-6">
+            {/* Main Info */}
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <div className="flex">
+                    <div className="w-1/3 text-gray-600 font-medium">Customer Name</div>
+                    <div className="w-2/3 font-semibold">: {formData.customerName}</div>
+                  </div>
+                  <div className="flex">
+                    <div className="w-1/3 text-gray-600 font-medium">Receipt Date</div>
+                    <div className="w-2/3 font-semibold">: {formattedDate}</div>
+                  </div>
+                  <div className="flex">
+                    <div className="w-1/3 text-gray-600 font-medium">No Document</div>
+                    <div className="w-2/3 font-semibold">: {documentNumber}</div>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex">
+                    <div className="w-1/3 text-gray-600 font-medium">Transaction</div>
+                    <div className="w-2/3 font-semibold">: {formData.transactionType}</div>
+                  </div>
+                  <div className="flex">
+                    <div className="w-1/3 text-gray-600 font-medium">Vehicle No</div>
+                    <div className="w-2/3 font-semibold">: {formData.vehicleNumber}</div>
+                  </div>
+                  <div className="flex">
+                    <div className="w-1/3 text-gray-600 font-medium">Container No</div>
+                    <div className="w-2/3 font-semibold">: {formData.containerNumber || "-"}</div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.transactionType === "Inbound"
-                ? formData.photos.afterUnloading?.preview && (
-                    <img
-                      src={formData.photos.afterUnloading.preview || "/placeholder.svg"}
-                      alt="After Unloading"
-                      className="w-full h-full object-cover"
-                    />
-                  )
-                : formData.photos.afterLoading?.preview && (
-                    <img
-                      src={formData.photos.afterLoading.preview || "/placeholder.svg"}
-                      alt="After Loading"
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">Product 1</div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.photos.products[0]?.preview && (
-                <img
-                  src={formData.photos.products[0].preview || "/placeholder.svg"}
-                  alt="Product 1"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">Product 2</div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.photos.products[1]?.preview && (
-                <img
-                  src={formData.photos.products[1].preview || "/placeholder.svg"}
-                  alt="Product 2"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">Product 3</div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.photos.products[2]?.preview && (
-                <img
-                  src={formData.photos.products[2].preview || "/placeholder.svg"}
-                  alt="Product 3"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </div>
-        </div>
 
-        {/* Photos Section 4 - More Products */}
-        <div className="grid grid-cols-4 gap-2 mb-8">
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">Product 4</div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.photos.products[3]?.preview && (
-                <img
-                  src={formData.photos.products[3].preview || "/placeholder.svg"}
-                  alt="Product 4"
-                  className="w-full h-full object-cover"
-                />
-              )}
+            <div className="text-center p-8 text-gray-500">
+              <p className="mb-2">This is a preview of your PDF document.</p>
+              <p>Click the "Download PDF" button to generate and download the full PDF.</p>
+              <p className="mt-4 text-sm">Checker: {user?.name || formData.checkerName}</p>
             </div>
-          </div>
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">Product 5</div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.photos.products[4]?.preview && (
-                <img
-                  src={formData.photos.products[4].preview || "/placeholder.svg"}
-                  alt="Product 5"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">Product 6</div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.photos.products[5]?.preview && (
-                <img
-                  src={formData.photos.products[5].preview || "/placeholder.svg"}
-                  alt="Product 6"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs mb-1 h-10 flex items-center">Product 7</div>
-            <div className="border border-gray-300 h-32 overflow-hidden">
-              {formData.photos.products[6]?.preview && (
-                <img
-                  src={formData.photos.products[6].preview || "/placeholder.svg"}
-                  alt="Product 7"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer with space for physical signature */}
-        <div className="flex justify-between items-end mt-8">
-          <div className="flex-1"></div>
-          <div className="flex-1 text-center">
-            {/* Space for physical signature - 40px height */}
-            <div className="mb-16 h-40 border-b border-dashed border-gray-300">
-              {/* Empty space for physical signature */}
-            </div>
-            <div className="font-semibold">{formData.checkerName}</div>
-            <div className="text-sm">Checker</div>
           </div>
         </div>
       </div>

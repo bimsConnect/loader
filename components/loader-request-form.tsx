@@ -21,7 +21,7 @@ import type { FormData } from "@/types/loader-form"
 
 // Dummy data
 const PLANTS = ["Cibitung", "Cikarang"]
-const VEHICLE_TYPES = ["Container", "Truk Biasa", "Pickup"]
+const VEHICLE_TYPES = ["Pribadi", "Grandmax", "CDE", "CDD", "Fuso", "Wingbox", "Container 20FT", "Container 40FT"]
 
 // Function to create empty form data
 const createEmptyFormData = (today: string, userName: string): FormData => ({
@@ -31,7 +31,6 @@ const createEmptyFormData = (today: string, userName: string): FormData => ({
   vehicleType: "",
   vehicleNumber: "",
   containerNumber: "",
-  warehouseName: "",
   transactionType: "Inbound",
   requiredPhotos: {
     frontView: null,
@@ -57,6 +56,56 @@ const createEmptyFormData = (today: string, userName: string): FormData => ({
   },
   checkerName: userName || "Guest User",
 })
+
+// Tambahkan fungsi fetchWithRetry untuk mengatasi masalah pengiriman form yang kadang gagal
+const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3) => {
+  let retries = 0
+
+  while (retries < maxRetries) {
+    try {
+      const response = await fetch(url, options)
+
+      // Jika respons OK, kembalikan respons
+      if (response.ok) {
+        return response
+      }
+
+      // Jika respons tidak OK, coba parse error
+      let errorMessage = `Error: ${response.status} ${response.statusText}`
+      try {
+        const errorData = await response.json()
+        errorMessage = errorData.error || errorMessage
+      } catch (e) {
+        // Jika tidak bisa parse JSON, gunakan pesan error default
+      }
+
+      // Jika ini percobaan terakhir, lempar error
+      if (retries === maxRetries - 1) {
+        throw new Error(errorMessage)
+      }
+
+      // Tunggu sebelum mencoba lagi (dengan backoff eksponensial)
+      const waitTime = Math.pow(2, retries) * 1000
+      await new Promise((resolve) => setTimeout(resolve, waitTime))
+
+      retries++
+    } catch (error) {
+      // Jika ini percobaan terakhir, lempar error
+      if (retries === maxRetries - 1) {
+        throw error
+      }
+
+      // Tunggu sebelum mencoba lagi
+      const waitTime = Math.pow(2, retries) * 1000
+      await new Promise((resolve) => setTimeout(resolve, waitTime))
+
+      retries++
+    }
+  }
+
+  // Jika semua percobaan gagal
+  throw new Error("Maximum retries exceeded")
+}
 
 export default function LoaderRequestForm() {
   const { user } = useAuth()
@@ -106,11 +155,9 @@ export default function LoaderRequestForm() {
   useEffect(() => {
     const fetchNextDocumentNumber = async () => {
       try {
-        const response = await fetch("/api/document-number")
-        if (response.ok) {
-          const data = await response.json()
-          setDocumentNumber(data.documentNumber)
-        }
+        const response = await fetchWithRetry("/api/document-number", { method: "GET" }, 3)
+        const data = await response.json()
+        setDocumentNumber(data.documentNumber)
       } catch (error) {
         console.error("Error fetching document number:", error)
       }
@@ -351,13 +398,14 @@ export default function LoaderRequestForm() {
   }
 
   const isGeneralInfoValid = () => {
-    const { customerName, vehicleType, vehicleNumber, warehouseName } = formData
+    const { customerName, vehicleType, vehicleNumber } = formData
 
-    if (!customerName || !vehicleType || !vehicleNumber || !warehouseName) {
+    if (!customerName || !vehicleType || !vehicleNumber) {
       return false
     }
 
-    if (formData.vehicleType === "Container" && !formData.containerNumber) {
+    // Pastikan Container Number diisi jika Vehicle Type mengandung kata "Container"
+    if (vehicleType.includes("Container") && !formData.containerNumber) {
       return false
     }
 
@@ -399,15 +447,14 @@ export default function LoaderRequestForm() {
     let total = 0
     let completed = 0
 
-    // General info (7 fields)
-    total += 7
+    // General info (6 fields) - Removed warehouseName
+    total += 6
     if (formData.date) completed += 1
     if (formData.plant) completed += 1
     if (formData.customerName) completed += 1
     if (formData.vehicleType) completed += 1
     if (formData.vehicleNumber) completed += 1
     if (formData.vehicleType !== "Container" || formData.containerNumber) completed += 1
-    if (formData.warehouseName) completed += 1
 
     // Required photos (7 photos)
     total += 7
@@ -432,26 +479,28 @@ export default function LoaderRequestForm() {
     return Math.round((completed / total) * 100)
   }
 
+  // Ubah fungsi handleSaveDraft untuk menggunakan fetchWithRetry
   const handleSaveDraft = async () => {
     setLoading(true)
 
     try {
-      const response = await fetch("/api/loader-requests", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetchWithRetry(
+        "/api/loader-requests",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...formData,
+            status: "draft",
+            documentNumber: documentNumber,
+          }),
         },
-        body: JSON.stringify({
-          ...formData,
-          status: "draft",
-          documentNumber: documentNumber,
-        }),
-      })
+        3,
+      )
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to save draft")
-      }
+      const data = await response.json()
 
       // Show success dialog
       setSuccessDialogContent({
@@ -471,6 +520,7 @@ export default function LoaderRequestForm() {
     }
   }
 
+  // Ubah fungsi handleSubmit untuk menggunakan fetchWithRetry
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -486,22 +536,23 @@ export default function LoaderRequestForm() {
     setLoading(true)
 
     try {
-      const response = await fetch("/api/loader-requests", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetchWithRetry(
+        "/api/loader-requests",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...formData,
+            status: "submitted",
+            documentNumber: documentNumber,
+          }),
         },
-        body: JSON.stringify({
-          ...formData,
-          status: "submitted",
-          documentNumber: documentNumber,
-        }),
-      })
+        3,
+      )
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to submit form")
-      }
+      const data = await response.json()
 
       setSubmitted(true)
 
@@ -526,13 +577,12 @@ export default function LoaderRequestForm() {
     }
   }
 
+  // Ubah fungsi fetchNextDocumentNumber untuk menggunakan fetchWithRetry
   const fetchNextDocumentNumber = async () => {
     try {
-      const response = await fetch("/api/document-number")
-      if (response.ok) {
-        const data = await response.json()
-        setDocumentNumber(data.documentNumber)
-      }
+      const response = await fetchWithRetry("/api/document-number", { method: "GET" }, 3)
+      const data = await response.json()
+      setDocumentNumber(data.documentNumber)
     } catch (error) {
       console.error("Error fetching document number:", error)
     }

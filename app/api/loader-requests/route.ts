@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
         vehicleType: formData.vehicleType,
         vehicleNumber: formData.vehicleNumber,
         containerNumber: formData.containerNumber || null,
-        warehouseName: formData.warehouseName,
+        warehouseName: "Default Warehouse", // Tetap mengisi nilai default
         transactionType: formData.transactionType,
         checkerName: formData.checkerName,
         status: formData.status || "draft",

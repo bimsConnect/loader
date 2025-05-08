@@ -174,6 +174,7 @@ export function HistoryList() {
     // Format the data for PDF generation
     const formattedRequest = formatRequestForPdf(request)
     setFormattedData(formattedRequest)
+    setSelectedRequest(request) // Pastikan request yang dipilih disimpan
     setShowPdfPreview(true)
   }
 
@@ -259,6 +260,7 @@ export function HistoryList() {
       requiredPhotos,
       photos,
       checkerName: request.checkerName,
+      documentNumber: request.documentNumber, // Pastikan document number disertakan
     }
   }
 
@@ -379,6 +381,7 @@ export function HistoryList() {
                     <TableHead className="cursor-pointer" onClick={() => handleSort("vehicleNumber")}>
                       <div className="flex items-center">No. Kendaraan {renderSortIcon("vehicleNumber")}</div>
                     </TableHead>
+                    <TableHead>No. Dokumen</TableHead>
                     <TableHead>Tipe</TableHead>
                     <TableHead className="cursor-pointer" onClick={() => handleSort("status")}>
                       <div className="flex items-center">Status {renderSortIcon("status")}</div>
@@ -405,6 +408,12 @@ export function HistoryList() {
                         <div className="flex items-center gap-2">
                           <Truck className="h-4 w-4 text-gray-500" />
                           {request.vehicleNumber}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-gray-500" />
+                          {request.documentNumber || "-"}
                         </div>
                       </TableCell>
                       <TableCell>

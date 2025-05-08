@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { PdfGenerator } from "@/components/pdf-generator"
 import type { FormData } from "@/types/loader-form"
 
@@ -157,10 +157,6 @@ export function SignatureTab({
               </div>
             )}
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="text-gray-500">Gudang:</div>
-              <div className="font-medium">{formData.warehouseName || "-"}</div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="text-gray-500">Tipe Transaksi:</div>
               <div className="font-medium">{formData.transactionType}</div>
             </div>
@@ -250,6 +246,7 @@ export function SignatureTab({
 
       <Dialog open={showPdfPreview} onOpenChange={setShowPdfPreview}>
         <DialogContent className="max-w-[90vw] w-[900px] max-h-[90vh] overflow-y-auto">
+          <DialogTitle className="sr-only">Preview PDF</DialogTitle>
           <PdfGenerator formData={formData} documentNumber={documentNumber} />
         </DialogContent>
       </Dialog>

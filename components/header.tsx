@@ -38,12 +38,6 @@ export function Header() {
                 <SheetTitle>Menu</SheetTitle>
               </SheetHeader>
               <nav className="flex flex-col gap-4 pt-4">
-                <Link href="/dashboard" passHref>
-                  <Button variant="ghost" className="justify-start" onClick={() => setOpen(false)}>
-                    <BarChart2 className="mr-2 h-4 w-4" />
-                    Dashboard
-                  </Button>
-                </Link>
                 <Link href="/loader-request" passHref>
                   <Button variant="ghost" className="justify-start" onClick={() => setOpen(false)}>
                     <FileText className="mr-2 h-4 w-4" />
@@ -70,20 +64,11 @@ export function Header() {
               </nav>
             </SheetContent>
           </Sheet>
-          <Link href="/dashboard" className="font-semibold text-lg text-blue-600">
+          <Link href="/loader-request" className="font-semibold text-lg text-blue-600">
             Loader Request System
           </Link>
         </div>
         <nav className="hidden md:flex items-center gap-5 text-sm">
-          <Link href="/dashboard" passHref>
-            <Button
-              variant="ghost"
-              className={`text-gray-700 ${isActive("/dashboard") ? "bg-blue-50 text-blue-700" : ""}`}
-            >
-              <BarChart2 className="mr-2 h-4 w-4" />
-              Dashboard
-            </Button>
-          </Link>
           <Link href="/loader-request" passHref>
             <Button
               variant="ghost"
