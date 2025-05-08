@@ -10,7 +10,10 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Loader Request App",
   description: "Aplikasi permintaan loader untuk manajemen gudang",
-    generator: 'v0.dev'
+    generator: 'v0.dev',
+    icons: {
+      icon: "/favicon.ico",
+    },
 }
 
 export default function RootLayout({
